@@ -1,0 +1,375 @@
+#@ load("@ytt:data", "data")
+#@ load("@ytt:struct", "struct")
+#@ load("@ytt:yaml", "yaml")
+---
+#@ def gridPos(index, panels, excludeRows = False):
+#@   if excludeRows and panels[index].type == "row":
+#@     return gridPos(index - 1, panels) if index > 0 else {}
+#@   end
+#@   previousGridPos = gridPos(index - 1, panels) if index > 0 else { "x": 0, "y": 0 }
+#@   previousNonRowGridPos = gridPos(index - 1, panels, excludeRows = True) if index > 0 else previousGridPos
+#@   panel = struct.decode(panels[index])
+#@   specifiedGridPos = panel.get("gridPos") or ( {"w": 24, "h": 1} if panel["type"] == "row" else {} )
+#@   w = specifiedGridPos.get("w") or previousNonRowGridPos.get("w") or 12
+#@   rightLimitOfPrevious = previousGridPos.get("x") + (previousGridPos.get("w") or 0)
+#@   fitsInRow = rightLimitOfPrevious + w <= 24
+#@   return {
+#@     "x": specifiedGridPos.get("x") or (rightLimitOfPrevious if fitsInRow else 0),
+#@     "y": specifiedGridPos.get("y") or (previousGridPos.get("y") if fitsInRow else previousGridPos.get("y") + previousGridPos.get("h")),
+#@     "w": w,
+#@     "h": specifiedGridPos.get("h") or previousNonRowGridPos.get("h") or 9
+#@   }
+#@ end
+---
+#@ def targets(panel):
+  #@ targets = panel.get("targets") or ([panel["target"]] if panel.get("target") else [])
+  #@ for i in range(len(targets)):
+    #@ target = targets[i]
+    - expr: #@ target["expr"]
+      format: time_series
+      intervalFactor: #@ target.get("intervalFactor") or 2
+      legendFormat: #@ target.get("legendFormat") or ''
+      refId: #@ chr(list('A'.codepoint_ords())[0] + i)
+  #@ end
+#@ end
+---
+#@ def alert(panel):
+  #@ alert = panel["alert"]
+  alertRuleTags: {}
+  conditions:
+    #@ for/end condition in alert.get("conditions") or []:
+    - evaluator:
+        params: #@ condition.get("evaluatorParams") or [None]
+        type: #@ condition.get("evaluatorType") or "gt"
+      operator:
+        type: and
+      query:
+        params:
+          - #@ condition.get("queryRefId") or "A"
+          - #@ condition.get("queryTimeStart") or "5m"
+          - #@ condition.get("queryTimeEnd") or "now"
+      reducer:
+        params: #@ condition.get("reducerParams") or []
+        type: #@ condition.get("reducerType") or "avg"
+      type: query
+  executionErrorState: keep_state
+  for: #@ alert.get("forDuration") or "5m"
+  frequency: #@ alert.get("frequency") or "1m"
+  handler: 1
+  message: #@ alert.get("message")
+  name: #@ alert.get("name") or (panel.get("title") or '') + " alert"
+  noDataState: #@ alert.get("noDataState") or "no_data"
+  notifications: #@ alert.get("notifications") or []
+#@ end
+---
+#@ def row(index, panel, panels):
+collapse: false
+collapsed: false
+gridPos: #@ panel["gridPos"]
+id: #@ index + 2
+panels: []
+repeat: null
+repeatIteration: null
+repeatRowId: null
+showTitle: true
+title: #@ panel.get("title") or ''
+titleSize: h6
+type: row
+#@ end
+---
+#@ def gauge(index, panel, panels):
+datasource: null
+gridPos: #@ panel["gridPos"]
+id: #@ index + 2
+options: #@ panel["options"]
+targets: #@ targets(panel)
+title: #@ panel.get("title") or ''
+type: gauge
+#@ end
+---
+#@ def flantStatusmapPanel(index, panel, panels):
+cards:
+  cardHSpacing: #@ panel.get("cardHSpacing") or 2
+  cardMinWidth: #@ panel.get("cardMinWidth") or 5
+  cardRound: #@ panel.get("cardRound")
+  cardVSpacing: #@ panel.get("cardVSpacing") or 2
+color:
+  cardColor: '#b4ff00'
+  colorScale: sqrt
+  colorScheme: #@ panel.get("colorScheme") or "interpolateGnYlRd"
+  defaultColor: '#757575'
+  exponent: 0.5
+  #@ if/end panel.get("colorMax") != None:
+  max: #@ panel.get("colorMax")
+  #@ if/end panel.get("colorMin") != None:
+  min: #@ panel.get("colorMin")
+  mode: #@ panel.get("colorMode") or "spectrum"
+  thresholds: #@ panel.get("colorThresholds") or []
+data:
+  decimals: null
+  unitFormat: short
+datasource: null
+gridPos: #@ panel["gridPos"]
+highlightCards: true
+id: #@ index + 2
+legend:
+  show: true
+links: []
+nullPointMode: #@ panel.get("nullPointMode") or "as empty"
+targets: #@ targets(panel)
+timeFrom: null
+timeShift: null
+title: #@ panel.get("title") or ''
+tooltip:
+  show: true
+type: flant-statusmap-panel
+useMax: true
+xAxis:
+  labelFormat: '%a %m/%d'
+  minBucketWidthToShowWeekends: 4
+  show: true
+  showCrosshair: true
+  showWeekends: true
+yAxis:
+  show: true
+  showCrosshair: false
+yAxisSort: metrics
+#@ end
+---
+#@ def graphPanel(index, panel, panels):
+#@ if/end panel.get("alert"):
+alert: #@ alert(panel)
+aliasColors: {}
+bars: #@ panel.get("bars") or False
+dashLength: 10
+dashes: false
+datasource: #@ panel.get("datasource")
+fill: 1
+gridPos: #@ panel["gridPos"]
+id: #@ index + 2
+legend:
+  alignAsTable: false
+  avg: false
+  current: false
+  max: false
+  min: false
+  rightSide: false
+  show: true
+  total: false
+  values: false
+lines: #@ panel.get("lines") if "lines" in panel else True
+linewidth: 1
+links: []
+nullPointMode: 'null'
+percentage: false
+pointradius: 2
+points: false
+renderer: flot
+repeat: null
+seriesOverrides: #@ panel.get("seriesOverrides") or []
+spaceLength: 10
+stack: false
+steppedLine: false
+targets: #@ targets(panel)
+thresholds: #@ panel.get("thresholds") or []
+timeFrom: null
+#@ if/end panel.get("timeRegions"):
+timeRegions: #@ panel.get("timeRegions")
+timeShift: null
+title: #@ panel.get("title") or ''
+tooltip:
+  shared: true
+  sort: 0
+  value_type: individual
+type: graph
+xaxis:
+  buckets: null
+  mode: time
+  name: null
+  show: true
+  values: []
+yaxes:
+  - format: short
+    label: null
+    logBase: 1
+    max: null
+    min: #@ panel.get("min")
+    show: true
+  - format: short
+    label: null
+    logBase: 1
+    max: null
+    min: #@ panel.get("min")
+    show: true
+#@ if/end panel.get("yaxisAlign") != None or panel.get("yaxisAlignLevel") != None:
+yaxis:
+  align: false
+  alignLevel: null
+#@ end
+---
+#@ def singlestat(index, panel, panels):
+cacheTimeout: null
+colorBackground: false
+colorValue: false
+colors:
+  - '#299c46'
+  - rgba(237, 129, 40, 0.89)
+  - '#d44a3a'
+datasource: #@ panel.get("datasource")
+decimals: #@ panel.get("decimals")
+format: #@ panel.get("format") or "none"
+gauge:
+  maxValue: #@ panel.get("gaugeMaxValue") or 100
+  minValue: #@ panel.get("gaugeMinValue") or 0
+  show: #@ panel.get("gaugeShow") or False
+  thresholdLabels: false
+  thresholdMarkers: true
+gridPos: #@ panel["gridPos"]
+id: #@ index + 2
+interval: null
+links: []
+mappingType: 1
+mappingTypes:
+  - name: value to text
+    value: 1
+  - name: range to text
+    value: 2
+maxDataPoints: 100
+maxPerRow: #@ panel.get("maxPerRow")
+nullPointMode: connected
+nullText: null
+postfix: ''
+postfixFontSize: 50%
+prefix: ''
+prefixFontSize: 50%
+rangeMaps:
+  - from: 'null'
+    text: N/A
+    to: 'null'
+sparkline:
+  fillColor: rgba(31, 118, 189, 0.18)
+  full: false
+  lineColor: rgb(31, 120, 193)
+  show: #@ panel.get("sparklineShow") or False
+tableColumn: ''
+targets: #@ targets(panel)
+thresholds: #@ panel.get("thresholds") or ""
+timeFrom: #@ panel.get("timeFrom")
+#@ if/end panel.get("timeShift"):
+timeShift: #@ panel.get("timeShift")
+title: #@ panel.get("title") or ''
+type: singlestat
+valueFontSize: 80%
+valueMaps:
+  - op: '='
+    text: N/A
+    value: 'null'
+valueName: avg
+#@ end
+---
+#@ def hardwareResourcePanel(index, panel, panels):
+#@ def localPanel():
+decimals: 0
+format: percentunit
+gaugeMaxValue: 1
+gaugeShow: true
+gridPos: #@ panel["gridPos"]
+maxPerRow: 12
+sparklineShow: true
+targets: #@ panel.get("targets")
+target: #@ panel.get("target")
+thresholds: '0.5,0.8'
+timeFrom: 1h
+title: #@ panel.get("title") or ''
+type: singlestat
+#@ end
+#@ return singlestat(index, yaml.decode(yaml.encode(localPanel())), panels)
+#@ end
+---
+#@ def cpuPanel(index, panel, panels):
+#@ def localPanel():
+gridPos: #@ panel["gridPos"]
+target:
+  type: prometheus
+  expr: #@ 'sum(irate(container_cpu_usage_seconds_total{container_name="%(containerName)s", namespace="%(namespace)s"}[15m])) by (namespace,container_name) / sum(container_spec_cpu_quota{container_name="%(containerName)s", namespace="%(namespace)s"} / container_spec_cpu_period{container_name="%(containerName)s", namespace="%(namespace)s"}) by (namespace,container_name)' % {"namespace": panel.get("namespace"), "containerName": panel.get("containerName")}
+  intervalFactor: 1
+title: #@ panel.get("title") or ''
+#@ end
+#@ return hardwareResourcePanel(index, yaml.decode(yaml.encode(localPanel())), panels)
+#@ end
+---
+#@ def ramPanel(index, panel, panels):
+#@ def localPanel():
+gridPos: #@ panel["gridPos"]
+target:
+  type: prometheus
+  expr: #@ 'sum(container_memory_usage_bytes{container_name="%(containerName)s", namespace="%(namespace)s"}) by (namespace,container_name) / sum(container_spec_memory_limit_bytes{container_name="%(containerName)s", namespace="%(namespace)s"}) by (namespace,container_name)' % {"namespace": panel.get("namespace"), "containerName": panel.get("containerName")}
+  intervalFactor: 1
+title: #@ panel.get("title") or ''
+#@ end
+#@ return hardwareResourcePanel(index, yaml.decode(yaml.encode(localPanel())), panels)
+#@ end
+---
+#@ def panelTemplates():
+#@ return {
+#@   "row": row,
+#@   "gauge": gauge,
+#@   "flant-statusmap-panel": flantStatusmapPanel,
+#@   "graph": graphPanel,
+#@   "singlestat": singlestat,
+#@   "cpu-panel": cpuPanel,
+#@   "ram-panel": ramPanel,
+#@ }
+#@ end
+
+__inputs: []
+__requires: []
+annotations:
+  list: []
+editable: true
+gnetId: null
+graphTooltip: 0
+hideControls: false
+id: null
+links: []
+panels:
+  #@ for i in range(len(data.values.panels)):
+  #@ panel = struct.decode(data.values.panels[i])
+  #@ panel.update(gridPos = gridPos(i, data.values.panels))
+  - #@ panelTemplates()[panel["type"]](i, panel, data.values.panels)
+  #@ end
+refresh: 1m
+rows: []
+schemaVersion: 18
+style: dark
+tags: #@ data.values.tags
+templating:
+  list: []
+time:
+  from: now-6h
+  to: now
+timepicker:
+  refresh_intervals:
+    - 5s
+    - 10s
+    - 30s
+    - 1m
+    - 5m
+    - 15m
+    - 30m
+    - 1h
+    - 2h
+    - 1d
+  time_options:
+    - 5m
+    - 15m
+    - 1h
+    - 6h
+    - 12h
+    - 24h
+    - 2d
+    - 7d
+    - 30d
+timezone: ''
+title: #@ data.values.title
+version: 0

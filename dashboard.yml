@@ -1,0 +1,115 @@
+#@data/values
+---
+title: My Dashboard
+tags:
+  - Tag 1
+  - Tag 2
+panels:
+  - type: row
+    title: Overview
+  - type: gauge
+    title: My first metric
+    calc: last
+    target:
+      type: prometheus
+      expr: 'my_first_metric'
+      intervalFactor: 1
+    options:
+      minValue: 0
+      maxValue: "100"
+      showThresholdLabels: false
+      showThresholdMarkers: true
+      thresholds:
+        - index: 0
+          value: null
+          color: green
+        - index: 1
+          value: 1
+          color: '#EAB839'
+        - index: 2
+          value: 5
+          color: red
+      valueOptions:
+        stat: last
+        suffix: ' Things'
+    gridPos:
+      w: 4
+      h: 8
+  - type: flant-statusmap-panel
+    title: My second metric
+    colorScheme: interpolateRdYlGn
+    colorMax: 2
+    colorMin: 0
+    nullPointMode: as zero
+    target:
+      type: prometheus
+      expr: 'my_second_metric'
+      intervalFactor: 1
+      legendFormat: '{{my_label}}'
+    gridPos:
+      w: 20
+  - type: row
+    title: Resources
+  - type: cpu-panel
+    title: CPU My Container
+    namespace: my-namespace
+    containerName: my-container
+    gridPos:
+      w: 3
+      h: 4
+  - type: ram-panel
+    title: RAM My Container
+    namespace: my-namespace
+    containerName: my-container
+  - type: graph
+    title: My third metric
+    bars: true
+    lines: false
+    target:
+      type: prometheus
+      expr: 'my_third_metric'
+      intervalFactor: 1
+      legendFormat: '{{my_label}}'
+    gridPos:
+      w: 24
+      h: 7
+  - type: row
+    title: Alerts
+  - type: graph
+    title: My alert metric
+    thresholds:
+      - colorMode: critical
+        fill: true
+        line: true
+        op: gt
+        value: 0
+    min: "0"
+    targets:
+      - type: prometheus
+        expr: 'my_first_alert_metric'
+        intervalFactor: 1
+        legendFormat: '{{my_label}}'
+      - type: prometheus
+        expr: 'my_second_alert_metric'
+        intervalFactor: 1
+        legendFormat: 'Total {{my_label}}'
+    seriesOverrides:
+      - alias: '/Total.*/'
+        yaxis: 2
+    alert:
+      name: My alert
+      executionErrorState: keep_state
+      forDuration: 1m
+      message: "Something's wrong"
+      noDataState: ok
+      notifications:
+        - uid: "000000001"
+      conditions:
+        - reducerType: last
+          queryRefId: A
+          evaluatorType: gt
+          evaluatorParams:
+            - 0
+    gridPos:
+      w: 24
+      h: 9
